@@ -1,0 +1,676 @@
+// Modern CFMStats Database Schema
+// PostgreSQL with Prisma ORM
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// ============================================
+// USER AUTHENTICATION & MANAGEMENT
+// ============================================
+
+model User {
+  id            String    @id @default(cuid())
+  name          String?
+  email         String    @unique
+  emailVerified DateTime?
+  image         String?
+  password      String?
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+
+  accounts      Account[]
+  sessions      Session[]
+  leagues       League[]
+  favoriteLeagues LeagueFavorite[]
+  defaultLeague LeagueDefault?
+
+  @@map("users")
+}
+
+model Account {
+  id                String  @id @default(cuid())
+  userId            String
+  type              String
+  provider          String
+  providerAccountId String
+  refresh_token     String?
+  access_token      String?
+  expires_at        Int?
+  token_type        String?
+  scope             String?
+  id_token          String?
+  session_state     String?
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([provider, providerAccountId])
+  @@map("accounts")
+}
+
+model Session {
+  id           String   @id @default(cuid())
+  sessionToken String   @unique
+  userId       String
+  expires      DateTime
+  user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("sessions")
+}
+
+model VerificationToken {
+  identifier String
+  token      String   @unique
+  expires    DateTime
+
+  @@unique([identifier, token])
+  @@map("verification_tokens")
+}
+
+// ============================================
+// LEAGUE MANAGEMENT
+// ============================================
+
+model League {
+  id          String   @id @default(cuid())
+  name        String
+  exportId    String?  @unique
+  isPublic    Boolean  @default(false)
+  ownerId     String
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  lastSyncAt  DateTime?
+  currentWeek Int      @default(1)
+  currentSeason Int    @default(1)
+
+  owner       User     @relation(fields: [ownerId], references: [id], onDelete: Cascade)
+  teams       Team[]
+  players     Player[]
+  schedule    ScheduleGame[]
+  favorites   LeagueFavorite[]
+  defaults    LeagueDefault[]
+  statsPassing StatsPassing[]
+  statsRushing StatsRushing[]
+  statsReceiving StatsReceiving[]
+  statsDefense StatsDefense[]
+  statsKicking StatsKicking[]
+  statsPunting StatsPunting[]
+  teamStats   TeamStats[]
+  teamStandings TeamStanding[]
+
+  @@map("leagues")
+}
+
+model LeagueFavorite {
+  id        String   @id @default(cuid())
+  userId    String
+  leagueId  String
+  createdAt DateTime @default(now())
+
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+  league League @relation(fields: [leagueId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, leagueId])
+  @@map("league_favorites")
+}
+
+model LeagueDefault {
+  id       String @id @default(cuid())
+  userId   String @unique
+  leagueId String
+
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+  league League @relation(fields: [leagueId], references: [id], onDelete: Cascade)
+
+  @@map("league_defaults")
+}
+
+// ============================================
+// TEAMS
+// ============================================
+
+model Team {
+  id              String   @id @default(cuid())
+  leagueId        String
+  teamId          Int      // Madden team ID
+  displayName     String
+  cityName        String
+  nickname        String
+  division        String
+  conferenceId    Int
+  divisionId      Int
+  primaryColor    String?
+  secondaryColor  String?
+  logoUrl         String?
+  userName        String?  // User controlling the team
+  offScheme       String?
+  defScheme       String?
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  league          League   @relation(fields: [leagueId], references: [id], onDelete: Cascade)
+  players         Player[]
+  homeGames       ScheduleGame[] @relation("HomeTeam")
+  awayGames       ScheduleGame[] @relation("AwayTeam")
+  standings       TeamStanding[]
+  stats           TeamStats[]
+
+  @@unique([leagueId, teamId])
+  @@map("teams")
+}
+
+model TeamStanding {
+  id              String  @id @default(cuid())
+  leagueId        String
+  teamId          String
+  seasonIndex     Int
+  rank            Int?
+  wins            Int     @default(0)
+  losses          Int     @default(0)
+  ties            Int     @default(0)
+  winPct          Float   @default(0)
+  divisionWins    Int     @default(0)
+  divisionLosses  Int     @default(0)
+  divisionTies    Int     @default(0)
+  conferenceWins  Int     @default(0)
+  conferenceLosses Int    @default(0)
+  conferenceTies  Int     @default(0)
+  pointsFor       Int     @default(0)
+  pointsAgainst   Int     @default(0)
+  pointDifferential Int   @default(0)
+
+  league League @relation(fields: [leagueId], references: [id], onDelete: Cascade)
+  team   Team   @relation(fields: [teamId], references: [id], onDelete: Cascade)
+
+  @@unique([leagueId, teamId, seasonIndex])
+  @@map("team_standings")
+}
+
+// ============================================
+// PLAYERS
+// ============================================
+
+model Player {
+  id                String   @id @default(cuid())
+  leagueId          String
+  teamId            String?
+  rosterId          Int      // Madden roster ID
+  firstName         String
+  lastName          String
+  position          String
+  jerseyNum         Int?
+  age               Int?
+  height            Int?     // in inches
+  weight            Int?     // in pounds
+  college           String?
+  yearsPro          Int      @default(0)
+  birthDay          Int?
+  birthMonth        Int?
+  birthYear         Int?
+
+  // Status
+  isActive          Boolean  @default(true)
+  isFreeAgent       Boolean  @default(false)
+  isOnIR            Boolean  @default(false)
+  isOnPracticeSquad Boolean  @default(false)
+  isRetired         Boolean  @default(false)
+
+  // Ratings
+  overallRating     Int?
+  playerBestOvr     Int?
+  playerSchemeOvr   Int?
+  teamSchemeOvr     Int?
+
+  // Development
+  devTrait          String?
+  experiencePoints  Int      @default(0)
+  rookieYear        Int?
+  legacyScore       Int      @default(0)
+
+  // Contract
+  contractSalary    Int      @default(0)
+  contractLength    Int      @default(0)
+  contractBonus     Int      @default(0)
+  capHit            Int      @default(0)
+  capReleaseNetSavings Int   @default(0)
+  capReleasePenalty Int      @default(0)
+  yearsLeft         Int      @default(0)
+
+  // Injury
+  injuryType        String?
+  injuryLength      Int?
+
+  // Draft
+  draftPick         Int?
+  draftRound        Int?
+
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+
+  league            League   @relation(fields: [leagueId], references: [id], onDelete: Cascade)
+  team              Team?    @relation(fields: [teamId], references: [id], onDelete: SetNull)
+  ratings           PlayerRating?
+  abilities         PlayerAbility[]
+  traits            PlayerTrait[]
+  passingStats      StatsPassing[]
+  rushingStats      StatsRushing[]
+  receivingStats    StatsReceiving[]
+  defenseStats      StatsDefense[]
+  kickingStats      StatsKicking[]
+  puntingStats      StatsPunting[]
+
+  @@unique([leagueId, rosterId])
+  @@index([leagueId, teamId])
+  @@index([position])
+  @@map("players")
+}
+
+model PlayerRating {
+  id                String  @id @default(cuid())
+  playerId          String  @unique
+
+  // Physical
+  speed             Int     @default(50)
+  acceleration      Int     @default(50)
+  agility           Int     @default(50)
+  strength          Int     @default(50)
+  stamina           Int     @default(50)
+  injury            Int     @default(50)
+  toughness         Int     @default(50)
+  jumping           Int     @default(50)
+
+  // Awareness
+  awareness         Int     @default(50)
+  playRecognition   Int     @default(50)
+
+  // Passing
+  throwPower        Int     @default(50)
+  throwAccuracyShort Int    @default(50)
+  throwAccuracyMid  Int     @default(50)
+  throwAccuracyDeep Int     @default(50)
+  throwOnRun        Int     @default(50)
+  throwUnderPressure Int    @default(50)
+
+  // Rushing
+  carrying          Int     @default(50)
+  breakTackle       Int     @default(50)
+  ballCarrierVision Int     @default(50)
+  stiffArm          Int     @default(50)
+  spinMove          Int     @default(50)
+  jukeMove          Int     @default(50)
+
+  // Receiving
+  catching          Int     @default(50)
+  catchInTraffic    Int     @default(50)
+  shortRouteRunning Int     @default(50)
+  mediumRouteRunning Int    @default(50)
+  deepRouteRunning  Int     @default(50)
+  spectacularCatch  Int     @default(50)
+  release           Int     @default(50)
+
+  // Blocking
+  passBlock         Int     @default(50)
+  runBlock          Int     @default(50)
+  leadBlock         Int     @default(50)
+  impactBlocking    Int     @default(50)
+  passBlockPower    Int     @default(50)
+  passBlockFinesse  Int     @default(50)
+  runBlockPower     Int     @default(50)
+  runBlockFinesse   Int     @default(50)
+
+  // Defense
+  tackle            Int     @default(50)
+  hitPower          Int     @default(50)
+  powerMoves        Int     @default(50)
+  finesseMoves      Int     @default(50)
+  blockShedding     Int     @default(50)
+  pursuit           Int     @default(50)
+  playAction        Int     @default(50)
+  manCoverage       Int     @default(50)
+  zoneCoverage      Int     @default(50)
+  press             Int     @default(50)
+
+  // Kicking
+  kickPower         Int     @default(50)
+  kickAccuracy      Int     @default(50)
+
+  player Player @relation(fields: [playerId], references: [id], onDelete: Cascade)
+
+  @@map("player_ratings")
+}
+
+model Ability {
+  id          String   @id @default(cuid())
+  name        String   @unique
+  description String?
+  category    String?  // X-Factor, Superstar, etc.
+
+  players     PlayerAbility[]
+
+  @@map("abilities")
+}
+
+model PlayerAbility {
+  id        String @id @default(cuid())
+  playerId  String
+  abilityId String
+
+  player  Player  @relation(fields: [playerId], references: [id], onDelete: Cascade)
+  ability Ability @relation(fields: [abilityId], references: [id], onDelete: Cascade)
+
+  @@unique([playerId, abilityId])
+  @@map("player_abilities")
+}
+
+model PlayerTrait {
+  id             String  @id @default(cuid())
+  playerId       String
+  bigHitter      Boolean @default(false)
+  clutch         Boolean @default(false)
+  highMotor      Boolean @default(false)
+  dropOpenPasses Boolean @default(false)
+  dropsPass      Boolean @default(false)
+  fightForYards  Boolean @default(false)
+  forcePass      Boolean @default(false)
+  penalty        Boolean @default(false)
+  playsBall      Boolean @default(false)
+  sensePressure  Boolean @default(false)
+  stripsBall     Boolean @default(false)
+  throwAway      Boolean @default(false)
+
+  player Player @relation(fields: [playerId], references: [id], onDelete: Cascade)
+
+  @@unique([playerId])
+  @@map("player_traits")
+}
+
+// ============================================
+// SCHEDULE
+// ============================================
+
+model ScheduleGame {
+  id              String   @id @default(cuid())
+  leagueId        String
+  seasonIndex     Int
+  seasonType      String   // REG, PRE, POST
+  weekIndex       Int
+  weekType        String
+  homeTeamId      String
+  awayTeamId      String
+  homeScore       Int?
+  awayScore       Int?
+  isGameComplete  Boolean  @default(false)
+  gameTime        DateTime?
+
+  league    League @relation(fields: [leagueId], references: [id], onDelete: Cascade)
+  homeTeam  Team   @relation("HomeTeam", fields: [homeTeamId], references: [id], onDelete: Cascade)
+  awayTeam  Team   @relation("AwayTeam", fields: [awayTeamId], references: [id], onDelete: Cascade)
+
+  @@unique([leagueId, seasonIndex, weekIndex, homeTeamId, awayTeamId])
+  @@index([leagueId, seasonIndex, weekIndex])
+  @@map("schedule_games")
+}
+
+// ============================================
+// STATISTICS - PASSING
+// ============================================
+
+model StatsPassing {
+  id                String  @id @default(cuid())
+  leagueId          String
+  playerId          String
+  seasonIndex       Int
+  weekIndex         Int
+  stageType         String  // REG, PRE, POST
+
+  passAttempts      Int     @default(0)
+  passCompletions   Int     @default(0)
+  passYards         Int     @default(0)
+  passTDs           Int     @default(0)
+  passInts          Int     @default(0)
+  passSacks         Int     @default(0)
+  passSackYards     Int     @default(0)
+  passLongest       Int     @default(0)
+  pass0_9           Int     @default(0)
+  pass10_19         Int     @default(0)
+  pass20_29         Int     @default(0)
+  pass30_39         Int     @default(0)
+  pass40_49         Int     @default(0)
+  pass50Plus        Int     @default(0)
+  passCompPct       Float   @default(0)
+  passYardsPerAtt   Float   @default(0)
+  passYardsPerGame  Float   @default(0)
+  passerRating      Float   @default(0)
+  qbRating          Float   @default(0)
+
+  league League @relation(fields: [leagueId], references: [id], onDelete: Cascade)
+  player Player @relation(fields: [playerId], references: [id], onDelete: Cascade)
+
+  @@unique([leagueId, playerId, seasonIndex, weekIndex, stageType])
+  @@index([leagueId, seasonIndex, weekIndex])
+  @@map("stats_passing")
+}
+
+// ============================================
+// STATISTICS - RUSHING
+// ============================================
+
+model StatsRushing {
+  id                String  @id @default(cuid())
+  leagueId          String
+  playerId          String
+  seasonIndex       Int
+  weekIndex         Int
+  stageType         String
+
+  rushAttempts      Int     @default(0)
+  rushYards         Int     @default(0)
+  rushTDs           Int     @default(0)
+  rushLongest       Int     @default(0)
+  rushYardsAfterContact Int @default(0)
+  rushFumbles       Int     @default(0)
+  rush1stDowns      Int     @default(0)
+  rush1stDownPct    Float   @default(0)
+  rushYardsPerAtt   Float   @default(0)
+  rushYardsPerGame  Float   @default(0)
+  rush20Plus        Int     @default(0)
+  rushBrokenTackles Int     @default(0)
+
+  league League @relation(fields: [leagueId], references: [id], onDelete: Cascade)
+  player Player @relation(fields: [playerId], references: [id], onDelete: Cascade)
+
+  @@unique([leagueId, playerId, seasonIndex, weekIndex, stageType])
+  @@index([leagueId, seasonIndex, weekIndex])
+  @@map("stats_rushing")
+}
+
+// ============================================
+// STATISTICS - RECEIVING
+// ============================================
+
+model StatsReceiving {
+  id                String  @id @default(cuid())
+  leagueId          String
+  playerId          String
+  seasonIndex       Int
+  weekIndex         Int
+  stageType         String
+
+  receptions        Int     @default(0)
+  recYards          Int     @default(0)
+  recTDs            Int     @default(0)
+  recLongest        Int     @default(0)
+  recYardsAfterCatch Int    @default(0)
+  recDrops          Int     @default(0)
+  recCatchPct       Float   @default(0)
+  recYardsPerRec    Float   @default(0)
+  recYardsPerGame   Float   @default(0)
+  rec20Plus         Int     @default(0)
+  recTargets        Int     @default(0)
+  recCatchRate      Float   @default(0)
+
+  league League @relation(fields: [leagueId], references: [id], onDelete: Cascade)
+  player Player @relation(fields: [playerId], references: [id], onDelete: Cascade)
+
+  @@unique([leagueId, playerId, seasonIndex, weekIndex, stageType])
+  @@index([leagueId, seasonIndex, weekIndex])
+  @@map("stats_receiving")
+}
+
+// ============================================
+// STATISTICS - DEFENSE
+// ============================================
+
+model StatsDefense {
+  id                String  @id @default(cuid())
+  leagueId          String
+  playerId          String
+  seasonIndex       Int
+  weekIndex         Int
+  stageType         String
+
+  defenseTackles    Int     @default(0)
+  defenseTacklesForLoss Int @default(0)
+  defenseSacks      Float   @default(0)
+  defenseInts       Int     @default(0)
+  defenseIntYards   Int     @default(0)
+  defenseIntTDs     Int     @default(0)
+  defensePD         Int     @default(0)
+  defenseForcedFum  Int     @default(0)
+  defenseFumRec     Int     @default(0)
+  defenseFumYards   Int     @default(0)
+  defenseFumTDs     Int     @default(0)
+  defenseBlocks     Int     @default(0)
+  defenseSafeties   Int     @default(0)
+  defenseKnockouts  Int     @default(0)
+
+  league League @relation(fields: [leagueId], references: [id], onDelete: Cascade)
+  player Player @relation(fields: [playerId], references: [id], onDelete: Cascade)
+
+  @@unique([leagueId, playerId, seasonIndex, weekIndex, stageType])
+  @@index([leagueId, seasonIndex, weekIndex])
+  @@map("stats_defense")
+}
+
+// ============================================
+// STATISTICS - KICKING
+// ============================================
+
+model StatsKicking {
+  id                String  @id @default(cuid())
+  leagueId          String
+  playerId          String
+  seasonIndex       Int
+  weekIndex         Int
+  stageType         String
+
+  fgMade            Int     @default(0)
+  fgAttempts        Int     @default(0)
+  fgPct             Float   @default(0)
+  fgLongest         Int     @default(0)
+  fg1_19Made        Int     @default(0)
+  fg20_29Made       Int     @default(0)
+  fg30_39Made       Int     @default(0)
+  fg40_49Made       Int     @default(0)
+  fg50PlusMade      Int     @default(0)
+  xpMade            Int     @default(0)
+  xpAttempts        Int     @default(0)
+  xpPct             Float   @default(0)
+  kickoffTouchbacks Int     @default(0)
+
+  league League @relation(fields: [leagueId], references: [id], onDelete: Cascade)
+  player Player @relation(fields: [playerId], references: [id], onDelete: Cascade)
+
+  @@unique([leagueId, playerId, seasonIndex, weekIndex, stageType])
+  @@index([leagueId, seasonIndex, weekIndex])
+  @@map("stats_kicking")
+}
+
+// ============================================
+// STATISTICS - PUNTING
+// ============================================
+
+model StatsPunting {
+  id                String  @id @default(cuid())
+  leagueId          String
+  playerId          String
+  seasonIndex       Int
+  weekIndex         Int
+  stageType         String
+
+  punts             Int     @default(0)
+  puntYards         Int     @default(0)
+  puntLongest       Int     @default(0)
+  puntAverage       Float   @default(0)
+  puntNetYards      Int     @default(0)
+  puntNetAverage    Float   @default(0)
+  puntIn20          Int     @default(0)
+  puntTouchbacks    Int     @default(0)
+  puntBlocked       Int     @default(0)
+
+  league League @relation(fields: [leagueId], references: [id], onDelete: Cascade)
+  player Player @relation(fields: [playerId], references: [id], onDelete: Cascade)
+
+  @@unique([leagueId, playerId, seasonIndex, weekIndex, stageType])
+  @@index([leagueId, seasonIndex, weekIndex])
+  @@map("stats_punting")
+}
+
+// ============================================
+// STATISTICS - TEAM
+// ============================================
+
+model TeamStats {
+  id                String  @id @default(cuid())
+  leagueId          String
+  teamId            String
+  seasonIndex       Int
+  weekIndex         Int
+  stageType         String
+
+  // Offense
+  offTotalYards     Int     @default(0)
+  offPassYards      Int     @default(0)
+  offRushYards      Int     @default(0)
+  offPassAttempts   Int     @default(0)
+  offPassCompletions Int    @default(0)
+  offRushAttempts   Int     @default(0)
+  offTotalPlays     Int     @default(0)
+  offYardsPerPlay   Float   @default(0)
+  offTurnovers      Int     @default(0)
+  offFumbles        Int     @default(0)
+  offSacks          Int     @default(0)
+  offPenalties      Int     @default(0)
+  offPenaltyYards   Int     @default(0)
+
+  // Defense
+  defTotalYards     Int     @default(0)
+  defPassYards      Int     @default(0)
+  defRushYards      Int     @default(0)
+  defPassAttempts   Int     @default(0)
+  defPassCompletions Int    @default(0)
+  defRushAttempts   Int     @default(0)
+  defSacks          Int     @default(0)
+  defInterceptions  Int     @default(0)
+  defForcedFumbles  Int     @default(0)
+  defFumbleRec      Int     @default(0)
+  defTurnovers      Int     @default(0)
+
+  // Special Teams
+  kickRetYards      Int     @default(0)
+  kickRetTDs        Int     @default(0)
+  puntRetYards      Int     @default(0)
+  puntRetTDs        Int     @default(0)
+
+  league League @relation(fields: [leagueId], references: [id], onDelete: Cascade)
+  team   Team   @relation(fields: [teamId], references: [id], onDelete: Cascade)
+
+  @@unique([leagueId, teamId, seasonIndex, weekIndex, stageType])
+  @@index([leagueId, seasonIndex, weekIndex])
+  @@map("team_stats")
+}
