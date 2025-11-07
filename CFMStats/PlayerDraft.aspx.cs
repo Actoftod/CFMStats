@@ -195,26 +195,25 @@ namespace CFMStats
             foreach (DataRow item in ds.Tables[0].Rows)
             {
 
-                var updateString = $"UPDATE tblPlayerProfile SET ModifiedOn = GetUTCDate(), rookieYear = {item.Field<int>("rookieYear")} WHERE leagueId = 14 AND presentationId = {item.Field<int>("presentationId")} AND portraitId = {item.Field<int>("portraitId")} AND rosterId = {item.Field<int>("rosterid")}";
+                var updateString = "UPDATE tblPlayerProfile SET ModifiedOn = GetUTCDate(), rookieYear = @rookieYear WHERE leagueId = 14 AND presentationId = @presentationId AND portraitId = @portraitId AND rosterId = @rosterId";
 
                 var sp2 = new StoredProc
                 {
                     Name = updateString,
                     IsSqlCommand = true,
-                    DataConnectionString = ConfigurationManager.ConnectionStrings["DefaultConnection"].ConnectionString
-                    
+                    DataConnectionString = ConfigurationManager.ConnectionStrings["DefaultConnection"].ConnectionString,
+                    ParameterSet = new System.Data.SqlClient.SqlCommand()
             };
 
-                //sp2.ParameterSet = new System.Data.SqlClient.SqlCommand();
-                //sp2.ParameterSet.Parameters.AddWithValue("@rookieYear", item.Field<int>("rookieYear"));
-                //sp2.ParameterSet.Parameters.AddWithValue("@birthDay", item.Field<int>("birthDay"));
-                //sp2.ParameterSet.Parameters.AddWithValue("@birthMonth", item.Field<int>("birthMonth"));
-                //sp2.ParameterSet.Parameters.AddWithValue("@rosterId", item.Field<int>("rosterId"));
+                sp2.ParameterSet.Parameters.AddWithValue("@rookieYear", item.Field<int>("rookieYear"));
+                sp2.ParameterSet.Parameters.AddWithValue("@presentationId", item.Field<int>("presentationId"));
+                sp2.ParameterSet.Parameters.AddWithValue("@portraitId", item.Field<int>("portraitId"));
+                sp2.ParameterSet.Parameters.AddWithValue("@rosterId", item.Field<int>("rosterid"));
 
                 var status = StoredProc.NonQuery(sp2);
 
                 Console.WriteLine(status);
- 
+
             }
 
 

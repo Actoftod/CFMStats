@@ -41,34 +41,34 @@ namespace CFMStats
                 Session["leagueID"] = Request.Cookies["LeagueId"]?.Value;
             }
 
-            //// The code below helps to protect against XSRF attacks
-            //var requestCookie = Request.Cookies[AntiXsrfTokenKey];
-            //Guid requestCookieGuidValue;
-            //if (requestCookie != null && Guid.TryParse(requestCookie.WeekIndex, out requestCookieGuidValue))
-            //{
-            //    // Use the Anti-XSRF token from the cookie
-            //    _antiXsrfTokenValue = requestCookie.WeekIndex;
-            //    Page.ViewStateUserKey = _antiXsrfTokenValue;
-            //}
-            //else
-            //{
-            //    // Generate a new Anti-XSRF token and save to the cookie
-            //    _antiXsrfTokenValue = Guid.NewGuid().ToString("N");
-            //    Page.ViewStateUserKey = _antiXsrfTokenValue;
+            // The code below helps to protect against XSRF attacks
+            var requestCookie = Request.Cookies[ANTI_XSRF_TOKEN_KEY];
+            Guid requestCookieGuidValue;
+            if (requestCookie != null && Guid.TryParse(requestCookie.Value, out requestCookieGuidValue))
+            {
+                // Use the Anti-XSRF token from the cookie
+                _antiXsrfTokenValue = requestCookie.Value;
+                Page.ViewStateUserKey = _antiXsrfTokenValue;
+            }
+            else
+            {
+                // Generate a new Anti-XSRF token and save to the cookie
+                _antiXsrfTokenValue = Guid.NewGuid().ToString("N");
+                Page.ViewStateUserKey = _antiXsrfTokenValue;
 
-            //    var responseCookie = new HttpCookie(AntiXsrfTokenKey)
-            //    {
-            //        HttpOnly = true,
-            //        WeekIndex = _antiXsrfTokenValue
-            //    };
-            //    if (FormsAuthentication.RequireSSL && Request.IsSecureConnection)
-            //    {
-            //        responseCookie.Secure = true;
-            //    }
-            //    Response.Cookies.Set(responseCookie);
-            //}
+                var responseCookie = new HttpCookie(ANTI_XSRF_TOKEN_KEY)
+                {
+                    HttpOnly = true,
+                    Value = _antiXsrfTokenValue
+                };
+                if (Request.IsSecureConnection)
+                {
+                    responseCookie.Secure = true;
+                }
+                Response.Cookies.Set(responseCookie);
+            }
 
-            //Page.PreLoad += master_Page_PreLoad;
+            Page.PreLoad += master_Page_PreLoad;
         }
 
         protected void Page_Load(object sender, EventArgs e) { }

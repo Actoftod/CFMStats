@@ -143,7 +143,7 @@ namespace CFMStats.Leagues
         {
             var sql = new StringBuilder();
 
-            sql.Append($"UPDATE tblLeague SET Name = '{league.Name}' WHERE Id = {league.Id};");
+            sql.Append("UPDATE tblLeague SET Name = @leagueName WHERE Id = @leagueId;");
 
             var SP = new StoredProc
             {
@@ -152,6 +152,9 @@ namespace CFMStats.Leagues
                 IsSqlCommand = true,
                 ParameterSet = new SqlCommand()
             };
+
+            SP.ParameterSet.Parameters.AddWithValue("@leagueName", league.Name);
+            SP.ParameterSet.Parameters.AddWithValue("@leagueId", league.Id);
 
             return StoredProc.NonQuery(SP);
         }

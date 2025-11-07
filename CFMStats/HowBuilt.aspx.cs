@@ -39,7 +39,7 @@ namespace CFMStats
             sbSQL.Append("SELECT t.teamid, t.displayName, t.ovrRating, draftRound, COUNT(*) AS Picks");
             sbSQL.Append(" FROM [tblPlayerProfile] p");
             sbSQL.Append(" JOIN tblTeamInfo t ON t.teamId = p.teamid AND t.leagueid = p.leagueId");
-            sbSQL.Append($" WHERE p.leagueId = {leagueId} AND p.isOnPracticeSquad = 0");
+            sbSQL.Append(" WHERE p.leagueId = @leagueId AND p.isOnPracticeSquad = 0");
             sbSQL.Append(" GROUP BY t.teamid, t.displayName, draftRound, t.ovrRating");
             sbSQL.Append(" ORDER BY t.displayName, draftRound;");
 
@@ -50,6 +50,8 @@ namespace CFMStats
                 DataConnectionString = ConfigurationManager.ConnectionStrings["DefaultConnection"].ConnectionString,
                 ParameterSet = new SqlCommand()
             };
+
+            SP.ParameterSet.Parameters.AddWithValue("@leagueId", leagueId);
 
             var ds = StoredProc.ShowMeTheData(SP);
 
